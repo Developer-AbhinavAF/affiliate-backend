@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
-const { CLIENT_ORIGIN } = require('./config/env');
+const { CLIENT_ORIGINS } = require('./config/env');
 const { errorHandler } = require('./middleware/errorHandler');
 const { maintenanceMiddleware } = require('./middleware/maintenance');
 const { healthRouter } = require('./routes/health');
@@ -25,7 +25,12 @@ const app = express();
 
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (CLIENT_ORIGINS.includes('*')) return cb(null, true);
+      if (CLIENT_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(null, true);
+    },
     credentials: true,
   })
 );
