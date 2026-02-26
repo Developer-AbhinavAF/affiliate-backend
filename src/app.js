@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const { CLIENT_ORIGIN } = require('./config/env');
 const { errorHandler } = require('./middleware/errorHandler');
+const { maintenanceMiddleware } = require('./middleware/maintenance');
 const { healthRouter } = require('./routes/health');
 const { authRouter } = require('./routes/auth');
 const { productsRouter } = require('./routes/products');
@@ -40,6 +41,8 @@ app.use(
     legacyHeaders: false,
   })
 );
+
+app.use(maintenanceMiddleware);
 
 app.get('/', (req, res) => {
   res.json({ success: true, name: 'TrendKart API' });

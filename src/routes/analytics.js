@@ -58,6 +58,86 @@ router.get(
 );
 
 router.get(
+  '/superadmin/advanced',
+  requireAuth,
+  requireRole(['SUPER_ADMIN']),
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit || 5), 25);
+
+    const orders = await Order.find({}).select('items createdAt');
+    const productIds = [];
+    for (const o of orders) {
+      for (const it of o.items) {
+        if (it.productId) productIds.push(it.productId);
+      }
+    }
+
+    const products = await Product.find({ _id: { $in: productIds } }).select('category title sellerId');
+    const byProductId = new Map(products.map((p) => [p._id.toString(), p]));
+
+    const sellerAgg = new Map();
+    const productAgg = new Map();
+    const categoryAgg = new Map();
+
+    for (const o of orders) {
+      for (const it of o.items) {
+        const pid = it.productId?.toString?.() || '';
+        const meta = byProductId.get(pid);
+        const category = meta?.category || 'unknown';
+
+        const sellerId = it.sellerId?.toString?.() || meta?.sellerId?.toString?.() || 'unknown';
+        const revenue = Number(it.lineTotal || 0);
+        const qty = Number(it.qty || 0);
+
+        if (!sellerAgg.has(sellerId)) sellerAgg.set(sellerId, { sellerId, revenue: 0, orders: 0, items: 0 });
+        const s = sellerAgg.get(sellerId);
+        s.revenue += revenue;
+        s.items += qty;
+
+        if (!productAgg.has(pid)) {
+          productAgg.set(pid, { productId: pid, title: it.title || meta?.title || '', revenue: 0, qty: 0, category });
+        }
+        const p = productAgg.get(pid);
+        p.revenue += revenue;
+        p.qty += qty;
+
+        if (!categoryAgg.has(category)) categoryAgg.set(category, { category, revenue: 0, qty: 0 });
+        const c = categoryAgg.get(category);
+        c.revenue += revenue;
+        c.qty += qty;
+      }
+    }
+
+    const sellerIds = Array.from(sellerAgg.keys()).filter((x) => x !== 'unknown');
+    const sellers = await User.find({ _id: { $in: sellerIds } }).select('name email');
+    const bySellerId = new Map(sellers.map((u) => [u._id.toString(), u]));
+
+    const topSellers = Array.from(sellerAgg.values())
+      .map((s) => ({
+        ...s,
+        name: bySellerId.get(s.sellerId)?.name || 'Unknown',
+        email: bySellerId.get(s.sellerId)?.email || '',
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+
+    const topProducts = Array.from(productAgg.values())
+      .filter((p) => p.productId)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+
+    const categories = Array.from(categoryAgg.values()).sort((a, b) => b.revenue - a.revenue);
+
+    res.json({
+      success: true,
+      topSellers,
+      topProducts,
+      categories,
+    });
+  })
+);
+
+router.get(
   '/admin/summary',
   requireAuth,
   requireRole(['ADMIN']),
