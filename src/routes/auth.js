@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/env');
 const { User } = require('../models/User');
+const { LoginLog } = require('../models/LoginLog');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const signupSchema = z.object({
@@ -60,24 +61,77 @@ router.post(
   '/login',
   asyncHandler(async (req, res) => {
     const { email, username, password } = loginSchema.parse(req.body);
+    const identifier = (email || username || '').trim();
+    const ip = req.ip;
 
     const user = email
       ? await User.findOne({ email })
       : await User.findOne({ $or: [{ username }, { name: username }] });
     if (!user) {
+      await LoginLog.create({
+        emailOrUsernameTried: identifier,
+        ip,
+        success: false,
+        reason: 'not_found',
+      });
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
+      await LoginLog.create({
+        userId: user._id,
+        emailOrUsernameTried: identifier,
+        ip,
+        success: false,
+        reason: 'locked',
+      });
+      return res.status(429).json({ success: false, message: 'Account locked. Try again later.' });
+    }
+
     if (user.disabled) {
+      await LoginLog.create({
+        userId: user._id,
+        emailOrUsernameTried: identifier,
+        ip,
+        success: false,
+        reason: 'disabled',
+      });
       return res.status(403).json({ success: false, message: 'Account disabled' });
     }
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      if (user.loginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.loginAttempts = 0;
+      }
+      await user.save();
+
+      await LoginLog.create({
+        userId: user._id,
+        emailOrUsernameTried: identifier,
+        ip,
+        success: false,
+        reason: 'wrong_password',
+      });
+
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    user.loginAttempts = 0;
+    user.lockUntil = null;
+    await user.save();
+
     const token = signToken(user._id.toString());
+
+    await LoginLog.create({
+      userId: user._id,
+      emailOrUsernameTried: identifier,
+      ip,
+      success: true,
+      reason: 'success',
+    });
 
     return res.json({
       success: true,

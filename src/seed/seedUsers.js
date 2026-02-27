@@ -52,6 +52,15 @@ async function seedUsers() {
     password: 'thisaccisforayushyadava66',
     role: 'ADMIN',
   });
+
+  // default helper account
+  await upsertUser({
+    name: 'AI Helper',
+    username: 'helper@ai',
+    email: 'helper@ai',
+    password: 'thisisaihelperthatistobecreatedbysuperadmin',
+    role: 'HELPER',
+  });
 }
 
 module.exports = { seedUsers };
