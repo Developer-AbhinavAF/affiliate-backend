@@ -20,6 +20,16 @@ const loginSchema = z.object({
   message: 'email or username is required',
 });
 
+const forgotPasswordSchema = z.object({
+  emailOrUsername: z.string().min(2).max(120),
+});
+
+const resetPasswordSchema = z.object({
+  emailOrUsername: z.string().min(2).max(120),
+  code: z.string().min(4).max(12),
+  newPassword: z.string().min(8).max(128),
+});
+
 function signToken(userId) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
@@ -81,6 +91,63 @@ router.post(
         sellerStatus: user.sellerStatus,
       },
     });
+  })
+);
+
+router.post(
+  '/forgot-password',
+  asyncHandler(async (req, res) => {
+    const { emailOrUsername } = forgotPasswordSchema.parse(req.body);
+
+    const user =
+      (await User.findOne({ email: emailOrUsername })) ||
+      (await User.findOne({ username: emailOrUsername })) ||
+      (await User.findOne({ name: emailOrUsername }));
+
+    // To prevent account enumeration, always respond success even if not found
+    if (!user) {
+      return res.json({ success: true, message: 'If an account exists, an OTP has been generated.' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    user.resetPasswordCode = code;
+    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await user.save();
+
+    // In a real app, send code via email/SMS here
+    // For now, log it so it can be retrieved from server logs during development
+    console.log('Password reset OTP for', user.email, 'is', code);
+
+    return res.json({ success: true, message: 'If an account exists, an OTP has been generated.' });
+  })
+);
+
+router.post(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const { emailOrUsername, code, newPassword } = resetPasswordSchema.parse(req.body);
+
+    const user =
+      (await User.findOne({ email: emailOrUsername })) ||
+      (await User.findOne({ username: emailOrUsername })) ||
+      (await User.findOne({ name: emailOrUsername }));
+
+    if (
+      !user ||
+      !user.resetPasswordCode ||
+      user.resetPasswordCode !== code ||
+      !user.resetPasswordExpires ||
+      user.resetPasswordExpires.getTime() < Date.now()
+    ) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.resetPasswordCode = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    return res.json({ success: true, message: 'Password reset successful' });
   })
 );
 

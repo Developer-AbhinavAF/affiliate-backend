@@ -19,10 +19,9 @@ router.get(
   requireAuth,
   requireRole(['SUPER_ADMIN']),
   asyncHandler(async (req, res) => {
-    const [orders, productsCount, activeSellersCount, totalUsersCount] = await Promise.all([
+    const [orders, productsCount, totalUsersCount] = await Promise.all([
       Order.find({}).select('grandTotal commissionAmount createdAt'),
       Product.countDocuments({}),
-      User.countDocuments({ role: 'SELLER', sellerStatus: 'APPROVED' }),
       User.countDocuments({}),
     ]);
 
@@ -48,7 +47,6 @@ router.get(
         totalRevenue,
         platformEarnings,
         totalOrders,
-        activeSellers: activeSellersCount,
         totalProducts: productsCount,
         totalUsers: totalUsersCount,
       },
@@ -142,8 +140,7 @@ router.get(
   requireAuth,
   requireRole(['ADMIN']),
   asyncHandler(async (req, res) => {
-    const [pendingSellers, pendingProducts, orders] = await Promise.all([
-      User.countDocuments({ role: 'SELLER', sellerStatus: 'PENDING' }),
+    const [pendingProducts, orders] = await Promise.all([
       Product.countDocuments({ status: 'PENDING_APPROVAL' }),
       Order.find({}).select('status createdAt'),
     ]);
@@ -169,63 +166,9 @@ router.get(
     res.json({
       success: true,
       kpis: {
-        pendingSellers,
         pendingProducts,
         totalOrders: orders.length,
         ordersByStatus: byStatus,
-      },
-      monthly: monthlySeries,
-    });
-  })
-);
-
-router.get(
-  '/seller/summary',
-  requireAuth,
-  requireRole(['SELLER']),
-  asyncHandler(async (req, res) => {
-    const sellerId = req.user._id;
-
-    const [productsCount, orders] = await Promise.all([
-      Product.countDocuments({ sellerId }),
-      Order.find({ 'items.sellerId': sellerId }).select('items status createdAt commissionAmount'),
-    ]);
-
-    let grossSales = 0;
-    let commissionDeducted = 0;
-    for (const o of orders) {
-      for (const it of o.items) {
-        if (it.sellerId.toString() === sellerId.toString()) {
-          grossSales += Number(it.lineTotal || 0);
-        }
-      }
-      commissionDeducted += Number(o.commissionAmount || 0);
-    }
-
-    const monthly = new Map();
-    for (const o of orders) {
-      const k = monthKey(o.createdAt);
-      const prev = monthly.get(k) || { month: k, sales: 0, orders: 0 };
-      prev.orders += 1;
-
-      for (const it of o.items) {
-        if (it.sellerId.toString() === sellerId.toString()) {
-          prev.sales += Number(it.lineTotal || 0);
-        }
-      }
-
-      monthly.set(k, prev);
-    }
-
-    const monthlySeries = Array.from(monthly.values()).sort((a, b) => a.month.localeCompare(b.month));
-
-    res.json({
-      success: true,
-      kpis: {
-        myProducts: productsCount,
-        myOrders: orders.length,
-        grossSales,
-        commissionDeducted,
       },
       monthly: monthlySeries,
     });

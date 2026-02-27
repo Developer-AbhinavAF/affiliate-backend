@@ -45,16 +45,6 @@ router.get(
 );
 
 router.get(
-  '/mine',
-  requireAuth,
-  requireRole(['SELLER']),
-  asyncHandler(async (req, res) => {
-    const items = await Product.find({ sellerId: req.user._id }).sort({ createdAt: -1 }).limit(200);
-    res.json({ success: true, items });
-  })
-);
-
-router.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const product = await Product.findById(req.params.id);

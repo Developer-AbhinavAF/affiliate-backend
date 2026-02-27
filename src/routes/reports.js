@@ -71,24 +71,4 @@ router.get('/products', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyn
   res.send(csv);
 }));
 
-// Export sellers CSV
-router.get('/sellers', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
-  const sellers = await User.find({ role: 'SELLER' }).sort({ createdAt: -1 });
-
-  const rows = sellers.map((s) => ({
-    sellerId: s._id,
-    name: s.name,
-    username: s.username,
-    email: s.email,
-    sellerStatus: s.sellerStatus,
-    createdAt: s.createdAt.toISOString(),
-  }));
-  const headers = ['sellerId', 'name', 'username', 'email', 'sellerStatus', 'createdAt'];
-  const csv = toCsv(rows, headers);
-
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="sellers.csv"');
-  res.send(csv);
-}));
-
 module.exports = { reportsRouter: router };

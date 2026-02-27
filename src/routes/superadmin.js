@@ -73,7 +73,7 @@ router.patch('/users/:id/toggle', requireAuth, requireRole(['SUPER_ADMIN']), asy
 
 router.patch('/users/:id/role', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandler(async (req, res) => {
   const { role } = req.body;
-  if (!['ADMIN', 'SELLER', 'CUSTOMER'].includes(role)) {
+  if (!['ADMIN', 'CUSTOMER'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
 
@@ -82,28 +82,12 @@ router.patch('/users/:id/role', requireAuth, requireRole(['SUPER_ADMIN']), async
   if (user.role === 'SUPER_ADMIN') return res.status(400).json({ success: false, message: 'Cannot change super admin role' });
 
   user.role = role;
-  if (role !== 'SELLER') user.sellerStatus = 'NONE';
+  user.sellerStatus = 'NONE';
   await user.save();
   res.json({ success: true, role: user.role });
 }));
 
-// Get all sellers with status
-router.get('/sellers', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
-  const { status } = req.query;
-  const filter = status ? { sellerStatus: status } : {};
-  const sellers = await User.find({ role: 'SELLER', ...filter }).select('-passwordHash').sort({ createdAt: -1 });
-  res.json({ success: true, items: sellers });
-}));
-
-// Approve/suspend seller
-router.patch('/sellers/:id/status', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
-  const { status } = req.body; // APPROVED, REJECTED, SUSPENDED
-  const seller = await User.findById(req.params.id);
-  if (!seller || seller.role !== 'SELLER') return res.status(404).json({ message: 'Seller not found' });
-  seller.sellerStatus = status;
-  await seller.save();
-  res.json({ success: true, sellerStatus: seller.sellerStatus });
-}));
+// Seller management endpoints removed (no seller role)
 
 // Get products with moderation status
 router.get('/products', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
@@ -123,21 +107,19 @@ router.patch('/products/:id/status', requireAuth, requireRole(['SUPER_ADMIN', 'A
   res.json({ success: true, status: product.status });
 }));
 
-// Get platform settings
+// Get platform settings (commission only)
 router.get('/settings', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandler(async (req, res) => {
   let settings = await PlatformSettings.findOne();
   if (!settings) settings = await PlatformSettings.create({});
   res.json({ success: true, item: settings });
 }));
 
-// Update platform settings
+// Update platform settings (commission only)
 router.patch('/settings', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandler(async (req, res) => {
-  const { commissionPct, maintenanceEnabled, maintenanceMessage } = req.body;
+  const { commissionPct } = req.body;
   let settings = await PlatformSettings.findOne();
   if (!settings) settings = new PlatformSettings();
   if (commissionPct !== undefined) settings.commissionPct = commissionPct;
-  if (maintenanceEnabled !== undefined) settings.maintenanceEnabled = Boolean(maintenanceEnabled);
-  if (maintenanceMessage !== undefined) settings.maintenanceMessage = String(maintenanceMessage || '');
   await settings.save();
   res.json({ success: true, item: settings });
 }));

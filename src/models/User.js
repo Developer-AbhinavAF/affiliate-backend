@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ['SUPER_ADMIN', 'ADMIN', 'SELLER', 'CUSTOMER'],
+      enum: ['SUPER_ADMIN', 'ADMIN', 'CUSTOMER'],
       default: 'CUSTOMER',
       index: true,
     },
@@ -37,6 +37,9 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
     addresses: { type: [addressSchema], default: [] },
+    // password reset
+    resetPasswordCode: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );

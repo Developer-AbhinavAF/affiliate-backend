@@ -18,7 +18,7 @@ function mapFiles(files) {
 router.post(
   '/product-images',
   requireAuth,
-  requireRole(['ADMIN', 'SELLER']),
+  requireRole(['ADMIN']),
   uploadProducts.array('images', 8),
   (req, res) => {
     res.json({ success: true, images: mapFiles(req.files) });

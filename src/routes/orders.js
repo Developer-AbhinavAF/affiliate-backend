@@ -120,17 +120,11 @@ router.get(
 router.get(
   '/',
   requireAuth,
-  requireRole(['SUPER_ADMIN', 'ADMIN', 'SELLER']),
+  requireRole(['SUPER_ADMIN', 'ADMIN']),
   asyncHandler(async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 25), 200);
-    const role = req.user.role;
 
-    let filter = {};
-    if (role === 'SELLER') {
-      filter = { 'items.sellerId': req.user._id };
-    }
-
-    const orders = await Order.find(filter)
+    const orders = await Order.find({})
       .sort({ createdAt: -1 })
       .limit(limit);
 
@@ -147,9 +141,8 @@ router.get(
 
     const isOwner = order.customerId.toString() === req.user._id.toString();
     const isAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role);
-    const isSeller = req.user.role === 'SELLER' && order.items.some((x) => x.sellerId.toString() === req.user._id.toString());
 
-    if (!isOwner && !isAdmin && !isSeller) {
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
@@ -160,7 +153,7 @@ router.get(
 router.patch(
   '/:id/status',
   requireAuth,
-  requireRole(['SUPER_ADMIN', 'ADMIN', 'SELLER']),
+  requireRole(['SUPER_ADMIN', 'ADMIN']),
   asyncHandler(async (req, res) => {
     const { status, note } = z
       .object({
@@ -171,11 +164,6 @@ router.patch(
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ success: false, message: 'Not found' });
-
-    if (req.user.role === 'SELLER') {
-      const isSeller = order.items.some((x) => x.sellerId.toString() === req.user._id.toString());
-      if (!isSeller) return res.status(403).json({ success: false, message: 'Forbidden' });
-    }
 
     order.status = status;
     order.timeline.push({ status, note });
