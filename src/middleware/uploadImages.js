@@ -1,6 +1,9 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const msc = require('multer-storage-cloudinary');
 const { cloudinary } = require('../config/cloudinary');
+
+// Support both default and named export shapes
+const CloudinaryStorage = msc.CloudinaryStorage || msc;
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 

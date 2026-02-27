@@ -5,7 +5,9 @@ const { z } = require('zod');
 const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/env');
 const { User } = require('../models/User');
 const { LoginLog } = require('../models/LoginLog');
+const { PasswordResetOtp } = require('../models/PasswordResetOtp');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { sendOtpEmail } = require('../config/email');
 
 const signupSchema = z.object({
   name: z.string().min(2).max(60),
@@ -22,17 +24,28 @@ const loginSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
-  emailOrUsername: z.string().min(2).max(120),
+  username: z.string().min(2).max(120),
+  email: z.string().email(),
 });
 
-const resetPasswordSchema = z.object({
-  emailOrUsername: z.string().min(2).max(120),
-  code: z.string().min(4).max(12),
-  newPassword: z.string().min(8).max(128),
-});
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[ -\/:-@\[-`\{-~]).{8,}$/;
 
-function signToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+const resetPasswordSchema = z
+  .object({
+    username: z.string().min(2).max(120),
+    email: z.string().email(),
+    code: z.string().min(4).max(12),
+    newPassword: z.string().regex(passwordRegex, 'Password does not meet complexity requirements'),
+  })
+  .refine((v) => Boolean(v.username) && Boolean(v.email), {
+    message: 'username and email are required',
+  });
+
+function signToken(user) {
+  return jwt.sign({ sub: user._id.toString(), v: user.tokenVersion || 0 }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
+  });
 }
 
 router.post(
@@ -47,7 +60,7 @@ router.post(
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({ name, email, passwordHash, role: 'CUSTOMER', sellerStatus: 'NONE' });
-    const token = signToken(user._id.toString());
+    const token = signToken(user);
 
     return res.status(201).json({
       success: true,
@@ -123,7 +136,7 @@ router.post(
     user.lockUntil = null;
     await user.save();
 
-    const token = signToken(user._id.toString());
+    const token = signToken(user);
 
     await LoginLog.create({
       userId: user._id,
@@ -151,55 +164,136 @@ router.post(
 router.post(
   '/forgot-password',
   asyncHandler(async (req, res) => {
-    const { emailOrUsername } = forgotPasswordSchema.parse(req.body);
+    const { username, email } = forgotPasswordSchema.parse(req.body);
+    const ip = req.ip || '';
 
     const user =
-      (await User.findOne({ email: emailOrUsername })) ||
-      (await User.findOne({ username: emailOrUsername })) ||
-      (await User.findOne({ name: emailOrUsername }));
+      (await User.findOne({ username })) ||
+      (await User.findOne({ name: username }));
 
-    // To prevent account enumeration, always respond success even if not found
-    if (!user) {
-      return res.json({ success: true, message: 'If an account exists, an OTP has been generated.' });
+    // Generic error to avoid leaking which field is wrong
+    if (!user || user.email !== email) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid username or email' });
+    }
+
+    const now = Date.now();
+
+    const userWindowStart = new Date(now - 15 * 60 * 1000);
+    const userRequests = await PasswordResetOtp.countDocuments({
+      userId: user._id,
+      createdAt: { $gte: userWindowStart },
+    });
+    if (userRequests >= 3) {
+      return res
+        .status(429)
+        .json({ success: false, message: 'Too many OTP requests. Try again later.' });
+    }
+
+    const ipWindowStart = new Date(now - 60 * 60 * 1000);
+    const ipRequests = await PasswordResetOtp.countDocuments({
+      ipAddress: ip,
+      createdAt: { $gte: ipWindowStart },
+    });
+    if (ipRequests >= 5) {
+      return res
+        .status(429)
+        .json({ success: false, message: 'Too many reset attempts. Try again later.' });
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    user.resetPasswordCode = code;
-    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    await user.save();
+    const otpHash = await bcrypt.hash(code, 10);
 
-    // In a real app, send code via email/SMS here
-    // For now, log it so it can be retrieved from server logs during development
-    console.log('Password reset OTP for', user.email, 'is', code);
+    const expiryTime = new Date(now + 5 * 60 * 1000);
 
-    return res.json({ success: true, message: 'If an account exists, an OTP has been generated.' });
+    await PasswordResetOtp.create({
+      userId: user._id,
+      otpHash,
+      expiryTime,
+      attemptCount: 0,
+      lockedUntil: null,
+      ipAddress: ip,
+      used: false,
+    });
+
+    try {
+      await sendOtpEmail(user.email, code);
+    } catch (e) {
+      console.error('Failed to send OTP email', e);
+    }
+
+    return res.json({ success: true, message: 'OTP sent if account exists' });
   })
 );
 
 router.post(
   '/reset-password',
   asyncHandler(async (req, res) => {
-    const { emailOrUsername, code, newPassword } = resetPasswordSchema.parse(req.body);
+    const { username, email, code, newPassword } = resetPasswordSchema.parse(req.body);
+    const ip = req.ip || '';
 
     const user =
-      (await User.findOne({ email: emailOrUsername })) ||
-      (await User.findOne({ username: emailOrUsername })) ||
-      (await User.findOne({ name: emailOrUsername }));
+      (await User.findOne({ username, email })) ||
+      (await User.findOne({ name: username, email }));
 
-    if (
-      !user ||
-      !user.resetPasswordCode ||
-      user.resetPasswordCode !== code ||
-      !user.resetPasswordExpires ||
-      user.resetPasswordExpires.getTime() < Date.now()
-    ) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+    if (!user) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired code' });
     }
 
-    user.passwordHash = await bcrypt.hash(newPassword, 12);
-    user.resetPasswordCode = null;
-    user.resetPasswordExpires = null;
+    const otpDoc = await PasswordResetOtp.findOne({
+      userId: user._id,
+      used: false,
+      expiryTime: { $gte: new Date() },
+    }).sort({ createdAt: -1 });
+
+    if (!otpDoc) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired code' });
+    }
+
+    if (otpDoc.lockedUntil && otpDoc.lockedUntil.getTime() > Date.now()) {
+      return res
+        .status(429)
+        .json({ success: false, message: 'Too many attempts. Try again later.' });
+    }
+
+    const match = await bcrypt.compare(code, otpDoc.otpHash);
+    if (!match) {
+      otpDoc.attemptCount = (otpDoc.attemptCount || 0) + 1;
+      if (otpDoc.attemptCount >= 5) {
+        otpDoc.lockedUntil = new Date(Date.now() + 10 * 60 * 1000);
+      }
+      await otpDoc.save();
+
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired code' });
+    }
+
+    const last3 = [user.passwordHash, ...(user.passwordHistory || []).map((h) => h.hash)].filter(Boolean).slice(0, 3);
+    for (const oldHash of last3) {
+      if (await bcrypt.compare(newPassword, oldHash)) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'New password cannot match last 3 passwords' });
+      }
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    user.passwordHistory = [
+      { hash: user.passwordHash, changedAt: new Date() },
+      ...(user.passwordHistory || []),
+    ].slice(0, 3);
+    user.passwordHash = newHash;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+
+    otpDoc.used = true;
+    await otpDoc.save();
 
     return res.json({ success: true, message: 'Password reset successful' });
   })

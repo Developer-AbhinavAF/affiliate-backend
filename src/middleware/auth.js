@@ -22,6 +22,10 @@ async function requireAuth(req, res, next) {
       return res.status(403).json({ success: false, message: 'Account disabled' });
     }
 
+    if (typeof payload.v === 'number' && typeof user.tokenVersion === 'number' && payload.v !== user.tokenVersion) {
+      return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+    }
+
     req.user = user;
     return next();
   } catch (e) {

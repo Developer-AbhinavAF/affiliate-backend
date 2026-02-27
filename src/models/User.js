@@ -37,14 +37,23 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
     addresses: { type: [addressSchema], default: [] },
-    // password reset
-    resetPasswordCode: { type: String, default: null },
-    resetPasswordExpires: { type: Date, default: null },
     // login security
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },
     // helper/admin stats
     productsUploadedCount: { type: Number, default: 0 },
+    // password history for reuse prevention
+    passwordHistory: {
+      type: [
+        {
+          hash: { type: String },
+          changedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    // token version to invalidate old JWTs after password change
+    tokenVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
