@@ -8,6 +8,10 @@ const CloudinaryStorage = msc.CloudinaryStorage || msc;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function imageFileFilter(req, file, cb) {
+  const cfg = cloudinary.config();
+  if (!cfg?.cloud_name || !cfg?.api_key || !cfg?.api_secret) {
+    return cb(new Error('Image upload is not configured on server'));
+  }
   if (!ALLOWED_MIME.has(file.mimetype)) {
     return cb(new Error('Only jpeg, png, webp images are allowed'));
   }
@@ -22,7 +26,7 @@ function createImageUploader({ folder, maxFileSizeBytes = 5 * 1024 * 1024, maxFi
       resource_type: 'image',
       format: 'webp',
       transformation: [
-        { width: 1400, height: 1400, crop: 'limit' },
+        { width: 1000, height: 1000, crop: 'limit' },
         { quality: 'auto:eco' },
       ],
     }),

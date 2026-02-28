@@ -30,6 +30,7 @@ const baseProductSchema = z.object({
   category: z.enum(['electrical', 'supplements', 'clothes_men', 'clothes_women', 'clothes_kids']),
   price: z.coerce.number().min(0),
   originalPrice: z.coerce.number().min(0).optional().default(0),
+  buyLink: z.union([z.string().url(), z.literal('')]).optional().default(''),
   sku: z.string().max(120).optional().default(''),
   stock: z.coerce.number().min(0),
   shippingCost: z.coerce.number().min(0).optional().default(0),
@@ -74,7 +75,7 @@ router.get(
         .skip(skip)
         .limit(limit)
         .select(
-          'title price currency images ratingAvg ratingCount stock category brand deliveryEtaDaysMin deliveryEtaDaysMax'
+          'title price currency images ratingAvg ratingCount stock category brand deliveryEtaDaysMin deliveryEtaDaysMax buyLink'
         ),
       Product.countDocuments(filter),
     ]);
