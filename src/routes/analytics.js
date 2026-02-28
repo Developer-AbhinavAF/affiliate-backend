@@ -70,10 +70,10 @@ router.get(
       }
     }
 
-    const products = await Product.find({ _id: { $in: productIds } }).select('category title sellerId');
+    const products = await Product.find({ _id: { $in: productIds } }).select('category title createdBy');
     const byProductId = new Map(products.map((p) => [p._id.toString(), p]));
 
-    const sellerAgg = new Map();
+    const creatorAgg = new Map();
     const productAgg = new Map();
     const categoryAgg = new Map();
 
@@ -83,14 +83,14 @@ router.get(
         const meta = byProductId.get(pid);
         const category = meta?.category || 'unknown';
 
-        const sellerId = it.sellerId?.toString?.() || meta?.sellerId?.toString?.() || 'unknown';
+        const creatorId = meta?.createdBy?.toString?.() || 'unknown';
         const revenue = Number(it.lineTotal || 0);
         const qty = Number(it.qty || 0);
 
-        if (!sellerAgg.has(sellerId)) sellerAgg.set(sellerId, { sellerId, revenue: 0, orders: 0, items: 0 });
-        const s = sellerAgg.get(sellerId);
-        s.revenue += revenue;
-        s.items += qty;
+        if (!creatorAgg.has(creatorId)) creatorAgg.set(creatorId, { creatorId, revenue: 0, items: 0 });
+        const cAgg = creatorAgg.get(creatorId);
+        cAgg.revenue += revenue;
+        cAgg.items += qty;
 
         if (!productAgg.has(pid)) {
           productAgg.set(pid, { productId: pid, title: it.title || meta?.title || '', revenue: 0, qty: 0, category });
@@ -106,15 +106,16 @@ router.get(
       }
     }
 
-    const sellerIds = Array.from(sellerAgg.keys()).filter((x) => x !== 'unknown');
-    const sellers = await User.find({ _id: { $in: sellerIds } }).select('name email');
-    const bySellerId = new Map(sellers.map((u) => [u._id.toString(), u]));
+    const creatorIds = Array.from(creatorAgg.keys()).filter((x) => x !== 'unknown');
+    const creators = await User.find({ _id: { $in: creatorIds } }).select('name email role');
+    const byCreatorId = new Map(creators.map((u) => [u._id.toString(), u]));
 
-    const topSellers = Array.from(sellerAgg.values())
-      .map((s) => ({
-        ...s,
-        name: bySellerId.get(s.sellerId)?.name || 'Unknown',
-        email: bySellerId.get(s.sellerId)?.email || '',
+    const topCreators = Array.from(creatorAgg.values())
+      .map((c) => ({
+        ...c,
+        name: byCreatorId.get(c.creatorId)?.name || 'Unknown',
+        email: byCreatorId.get(c.creatorId)?.email || '',
+        role: byCreatorId.get(c.creatorId)?.role || '',
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
@@ -128,7 +129,7 @@ router.get(
 
     res.json({
       success: true,
-      topSellers,
+      topCreators,
       topProducts,
       categories,
     });

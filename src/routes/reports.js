@@ -50,20 +50,20 @@ router.get('/orders', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncH
 // Export products CSV
 router.get('/products', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
   const products = await Product.find()
-    .populate('sellerId', 'name email')
+    .populate('createdBy', 'name email')
     .sort({ createdAt: -1 });
 
   const rows = products.map((p) => ({
     productId: p._id,
     title: p.title,
-    seller: p.sellerId?.name || '',
-    email: p.sellerId?.email || '',
+    createdByName: p.createdBy?.name || '',
+    createdByEmail: p.createdBy?.email || '',
     price: p.price,
     stock: p.stock,
     status: p.status,
     createdAt: p.createdAt.toISOString(),
   }));
-  const headers = ['productId', 'title', 'seller', 'email', 'price', 'stock', 'status', 'createdAt'];
+  const headers = ['productId', 'title', 'createdByName', 'createdByEmail', 'price', 'stock', 'status', 'createdAt'];
   const csv = toCsv(rows, headers);
 
   res.setHeader('Content-Type', 'text/csv');

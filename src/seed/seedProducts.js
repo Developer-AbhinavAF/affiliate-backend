@@ -1,7 +1,7 @@
 const { Product } = require('../models/Product');
 const { User } = require('../models/User');
 
-async function getFallbackSellerId() {
+async function getFallbackCreatorId() {
   const superAdmin = await User.findOne({ role: 'SUPER_ADMIN' }).select('_id');
   if (!superAdmin) {
     throw new Error('Cannot seed products without SUPER_ADMIN user (run seedUsers first)');
@@ -10,7 +10,7 @@ async function getFallbackSellerId() {
 }
 
 async function seedProducts() {
-  const sellerId = await getFallbackSellerId();
+  const createdBy = await getFallbackCreatorId();
   await Product.deleteMany({});
 
   const categories = [
@@ -130,7 +130,7 @@ async function seedProducts() {
       products.push({
         title: it.title,
         description: 'Quality build with a clean, minimal design. Great value for everyday use.',
-        sellerId,
+        createdBy,
         category: c.category,
         price: it.price,
         currency: 'INR',

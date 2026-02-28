@@ -23,6 +23,7 @@ const manageListQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(25),
 });
 
+
 const baseProductSchema = z.object({
   title: z.string().min(3).max(200),
   description: z.string().min(10).max(5000),
@@ -89,6 +90,7 @@ router.get(
   })
 );
 
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
@@ -96,6 +98,25 @@ router.get(
     if (!product || !product.isActive || product.status !== 'APPROVED') {
       return res.status(404).json({ success: false, message: 'Not found' });
     }
+    return res.json({ success: true, item: product });
+  })
+);
+
+// Management product detail (owner or elevated roles)
+router.get(
+  '/:id/manage',
+  requireAuth,
+  requireRole(['SUPER_ADMIN', 'ADMIN', 'HELPER']),
+  asyncHandler(async (req, res) => {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ success: false, message: 'Not found' });
+
+    const isOwner = product.createdBy.toString() === req.user._id.toString();
+    const isElevated = ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role);
+    if (!isElevated && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
     return res.json({ success: true, item: product });
   })
 );
@@ -131,7 +152,7 @@ router.get(
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('sellerId', 'name email'),
+        .populate('createdBy', 'name email'),
       Product.countDocuments(filter),
     ]);
 
@@ -159,7 +180,7 @@ router.post(
       ...payload,
       status,
       isActive,
-      sellerId: req.user._id,
+      createdBy: req.user._id,
     });
 
     res.status(201).json({ success: true, item: doc });
@@ -176,7 +197,7 @@ router.put(
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Not found' });
 
-    const isOwner = product.sellerId.toString() === req.user._id.toString();
+    const isOwner = product.createdBy.toString() === req.user._id.toString();
     const isElevated = ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role);
     if (!isElevated && !isOwner) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -205,7 +226,7 @@ router.delete(
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Not found' });
 
-    const isOwner = product.sellerId.toString() === req.user._id.toString();
+    const isOwner = product.createdBy.toString() === req.user._id.toString();
     const isElevated = ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role);
     if (!isElevated && !isOwner) {
       return res.status(403).json({ success: false, message: 'Forbidden' });

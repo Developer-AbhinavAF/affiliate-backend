@@ -82,7 +82,6 @@ router.patch('/users/:id/role', requireAuth, requireRole(['SUPER_ADMIN']), async
   if (user.role === 'SUPER_ADMIN') return res.status(400).json({ success: false, message: 'Cannot change super admin role' });
 
   user.role = role;
-  user.sellerStatus = 'NONE';
   await user.save();
   res.json({ success: true, role: user.role });
 }));
@@ -93,7 +92,7 @@ router.patch('/users/:id/role', requireAuth, requireRole(['SUPER_ADMIN']), async
 router.get('/products', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req, res) => {
   const { status } = req.query;
   const filter = status ? { status } : {};
-  const products = await Product.find(filter).populate('sellerId', 'name email').sort({ createdAt: -1 });
+  const products = await Product.find(filter).populate('createdBy', 'name email').sort({ createdAt: -1 });
   res.json({ success: true, items: products });
 }));
 

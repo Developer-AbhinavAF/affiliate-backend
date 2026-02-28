@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const orderItemSchema = new mongoose.Schema(
   {
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true },
     imageUrl: { type: String, default: '' },
     price: { type: Number, required: true, min: 0 },
@@ -43,7 +42,7 @@ const orderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     commissionPct: { type: Number, required: true, min: 0, max: 100 },
     commissionAmount: { type: Number, required: true, min: 0 },
-    sellerPayoutAmount: { type: Number, required: true, min: 0 },
+    platformRevenueAmount: { type: Number, required: true, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
     paymentMethod: { type: String, enum: ['COD'], default: 'COD' },
     shippingAddress: { type: addressSchema, required: true },

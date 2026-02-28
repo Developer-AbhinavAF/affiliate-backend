@@ -59,13 +59,13 @@ router.post(
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, passwordHash, role: 'CUSTOMER', sellerStatus: 'NONE' });
+    const user = await User.create({ name, email, passwordHash, role: 'CUSTOMER' });
     const token = signToken(user);
 
     return res.status(201).json({
       success: true,
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, sellerStatus: user.sellerStatus },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   })
 );
@@ -155,7 +155,6 @@ router.post(
         username: user.username,
         email: user.email,
         role: user.role,
-        sellerStatus: user.sellerStatus,
       },
     });
   })

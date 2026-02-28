@@ -11,7 +11,6 @@ async function upsertUser({ name, username, email, password, role }) {
     existing.username = resolvedUsername;
     existing.role = role;
     existing.passwordHash = passwordHash;
-    existing.sellerStatus = role === 'SELLER' ? 'PENDING' : 'NONE';
     await existing.save();
     return existing;
   }
@@ -22,7 +21,6 @@ async function upsertUser({ name, username, email, password, role }) {
     email,
     passwordHash,
     role,
-    sellerStatus: role === 'SELLER' ? 'PENDING' : 'NONE',
   });
 
   return user;

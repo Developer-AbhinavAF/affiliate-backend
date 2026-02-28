@@ -54,7 +54,6 @@ router.post(
 
       items.push({
         productId: p._id,
-        sellerId: p.sellerId,
         title: p.title,
         imageUrl: p.images?.[0]?.url || '',
         price: p.price,
@@ -70,7 +69,7 @@ router.post(
     const subtotal = items.reduce((sum, x) => sum + x.lineTotal, 0);
     const commissionPct = await getCommissionPct();
     const commissionAmount = (subtotal * commissionPct) / 100;
-    const sellerPayoutAmount = subtotal - commissionAmount;
+    const platformRevenueAmount = commissionAmount;
 
     const order = await Order.create({
       customerId: req.user._id,
@@ -78,7 +77,7 @@ router.post(
       subtotal,
       commissionPct,
       commissionAmount,
-      sellerPayoutAmount,
+      platformRevenueAmount,
       grandTotal: subtotal,
       paymentMethod: 'COD',
       shippingAddress,

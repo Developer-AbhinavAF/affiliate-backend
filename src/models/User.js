@@ -28,12 +28,6 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
     disabled: { type: Boolean, default: false, index: true },
-    sellerStatus: {
-      type: String,
-      enum: ['NONE', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
-      default: 'NONE',
-      index: true,
-    },
     phone: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
     addresses: { type: [addressSchema], default: [] },

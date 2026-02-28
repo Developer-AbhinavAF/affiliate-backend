@@ -20,7 +20,7 @@ const productSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
-    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     category: {
       type: String,
       required: true,
