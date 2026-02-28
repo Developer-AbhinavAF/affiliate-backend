@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const { User } = require('../models/User');
 const { Product } = require('../models/Product');
+const { Order } = require('../models/Order');
 const { PlatformSettings } = require('../models/PlatformSettings');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/requireRole');
@@ -121,6 +122,63 @@ router.patch('/settings', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandle
   if (commissionPct !== undefined) settings.commissionPct = commissionPct;
   await settings.save();
   res.json({ success: true, item: settings });
+}));
+
+// One-time migration: remove legacy seller fields (no seller role)
+router.post('/migrations/no-seller', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandler(async (req, res) => {
+  const dryRun = Boolean(req.body?.dryRun);
+
+  const summary = {
+    dryRun,
+    products: {
+      matched: 0,
+      modified: 0,
+    },
+    ordersItems: {
+      matched: 0,
+      modified: 0,
+    },
+    ordersPayout: {
+      matched: 0,
+      modified: 0,
+    },
+  };
+
+  if (dryRun) {
+    summary.products.matched = await Product.countDocuments({ sellerId: { $exists: true }, createdBy: { $exists: false } });
+    summary.ordersItems.matched = await Order.countDocuments({ 'items.sellerId': { $exists: true } });
+    summary.ordersPayout.matched = await Order.countDocuments({ sellerPayoutAmount: { $exists: true } });
+    return res.json({ success: true, summary });
+  }
+
+  const productsRes = await Product.updateMany(
+    { sellerId: { $exists: true }, createdBy: { $exists: false } },
+    [{ $set: { createdBy: '$sellerId' } }, { $unset: 'sellerId' }]
+  );
+
+  summary.products.matched = productsRes.matchedCount ?? productsRes.n ?? 0;
+  summary.products.modified = productsRes.modifiedCount ?? productsRes.nModified ?? 0;
+
+  const ordersItemsRes = await Order.updateMany(
+    { 'items.sellerId': { $exists: true } },
+    { $unset: { 'items.$[].sellerId': '' } }
+  );
+
+  summary.ordersItems.matched = ordersItemsRes.matchedCount ?? ordersItemsRes.n ?? 0;
+  summary.ordersItems.modified = ordersItemsRes.modifiedCount ?? ordersItemsRes.nModified ?? 0;
+
+  const ordersPayoutRes = await Order.updateMany(
+    { sellerPayoutAmount: { $exists: true } },
+    [
+      { $set: { platformRevenueAmount: '$commissionAmount' } },
+      { $unset: 'sellerPayoutAmount' },
+    ]
+  );
+
+  summary.ordersPayout.matched = ordersPayoutRes.matchedCount ?? ordersPayoutRes.n ?? 0;
+  summary.ordersPayout.modified = ordersPayoutRes.modifiedCount ?? ordersPayoutRes.nModified ?? 0;
+
+  return res.json({ success: true, summary });
 }));
 
 module.exports = { superadminRouter: router };

@@ -21,6 +21,10 @@ function createImageUploader({ folder, maxFileSizeBytes = 5 * 1024 * 1024, maxFi
       folder,
       resource_type: 'image',
       format: 'webp',
+      transformation: [
+        { width: 1400, height: 1400, crop: 'limit' },
+        { quality: 'auto:eco' },
+      ],
     }),
   });
 
