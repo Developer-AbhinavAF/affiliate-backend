@@ -27,6 +27,7 @@ const productSchema = new mongoose.Schema(
       enum: ['electrical', 'supplements', 'clothes_men', 'clothes_women', 'clothes_kids'],
       index: true,
     },
+    sku: { type: String, default: '', trim: true, index: true },
     price: { type: Number, required: true, min: 0 },
     originalPrice: { type: Number, min: 0, default: 0 },
     currency: { type: String, default: 'INR' },
@@ -58,6 +59,7 @@ const productSchema = new mongoose.Schema(
     specs: { type: [specSchema], default: [] },
     highlights: [{ type: String }],
     tags: [{ type: String }],
+    shippingCost: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SUSPENDED'],
