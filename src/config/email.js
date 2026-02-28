@@ -2,6 +2,8 @@ const nodemailer = require('nodemailer');
 
 const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
 
+const SUPPORT_INBOX = 'abhinavdeveloper6@gmail.com';
+
 let transporter = null;
 
 const sanitizedPass = (SMTP_PASS || '').replace(/\s+/g, '');
@@ -37,5 +39,76 @@ async function sendOtpEmail(to, code) {
   });
 }
 
-module.exports = { sendOtpEmail };
+async function sendSignupOtpEmail(to, code) {
+  if (!transporter) {
+    console.log('Signup OTP (email not configured):', to, code);
+    return;
+  }
+
+  const safeFrom = `TrendKart <${SMTP_USER}>`;
+  const from = SMTP_FROM && String(SMTP_FROM).includes(String(SMTP_USER)) ? SMTP_FROM : safeFrom;
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: 'Verify your email - TrendKart',
+    text: `Hello,\n\nYour OTP to verify your TrendKart account is: ${code}\n\nThis OTP is valid for 5 minutes.\n\nIf you did not request this, please ignore this email.\n\nRegards,\nSupport Team`,
+  });
+}
+
+function safeText(v) {
+  return String(v || '').replace(/\r/g, '').trim();
+}
+
+async function sendSupportQuestionEmail({ name, email, message, productId, productTitle, pageUrl }) {
+  const cleanName = safeText(name);
+  const cleanEmail = safeText(email);
+  const cleanMsg = safeText(message);
+  const cleanProductTitle = safeText(productTitle);
+  const cleanProductId = safeText(productId);
+  const cleanPageUrl = safeText(pageUrl);
+
+  if (!transporter) {
+    console.log('Support question (email not configured):', {
+      to: SUPPORT_INBOX,
+      name: cleanName,
+      email: cleanEmail,
+      productId: cleanProductId,
+      productTitle: cleanProductTitle,
+      pageUrl: cleanPageUrl,
+      message: cleanMsg,
+    });
+    return;
+  }
+
+  const safeFrom = `TrendKart <${SMTP_USER}>`;
+  const from = SMTP_FROM && String(SMTP_FROM).includes(String(SMTP_USER)) ? SMTP_FROM : safeFrom;
+
+  const subjectBits = ['New Customer Question'];
+  if (cleanProductTitle) subjectBits.push(cleanProductTitle);
+  const subject = `${subjectBits.join(' - ')} | TrendKart`;
+
+  const lines = [
+    'A customer has asked a question.',
+    '',
+    `Name: ${cleanName || '—'}`,
+    `Email: ${cleanEmail || '—'}`,
+    cleanProductId ? `Product ID: ${cleanProductId}` : null,
+    cleanProductTitle ? `Product: ${cleanProductTitle}` : null,
+    cleanPageUrl ? `Page: ${cleanPageUrl}` : null,
+    '',
+    'Message:',
+    cleanMsg || '—',
+  ].filter(Boolean);
+
+  await transporter.sendMail({
+    from,
+    to: SUPPORT_INBOX,
+    replyTo: cleanEmail || undefined,
+    subject,
+    text: lines.join('\n'),
+  });
+}
+
+module.exports = { sendOtpEmail, sendSignupOtpEmail, sendSupportQuestionEmail };
 

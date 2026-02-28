@@ -10,6 +10,17 @@ const listQuerySchema = z.object({
     .enum(['electrical', 'supplements', 'clothes_men', 'clothes_women', 'clothes_kids'])
     .optional(),
   q: z.string().min(1).max(80).optional(),
+  brand: z.string().min(1).max(80).optional(),
+  sourceCompany: z
+    .enum(['Amazon', 'Flipkart', 'Myntra', 'Ajio', 'Shopsy', 'Puma', 'Acer', 'MuscleBlaze', 'Nutrabay', 'HP', 'Custom'])
+    .optional(),
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  minRating: z.coerce.number().min(0).max(5).optional(),
+  bankOffer: z.coerce.boolean().optional(),
+  exchangeOffer: z.coerce.boolean().optional(),
+  emiAvailable: z.coerce.boolean().optional(),
+  partnerCoupon: z.coerce.boolean().optional(),
   limit: z.coerce.number().min(1).max(50).optional().default(24),
   page: z.coerce.number().min(1).max(1000).optional().default(1),
 });
@@ -28,12 +39,23 @@ const baseProductSchema = z.object({
   title: z.string().min(3).max(200),
   description: z.string().min(10).max(5000),
   category: z.enum(['electrical', 'supplements', 'clothes_men', 'clothes_women', 'clothes_kids']),
+  brand: z.string().max(80).optional().default(''),
+  sourceCompany: z
+    .enum(['Amazon', 'Flipkart', 'Myntra', 'Ajio', 'Shopsy', 'Puma', 'Acer', 'MuscleBlaze', 'Nutrabay', 'HP', 'Custom'])
+    .optional()
+    .default('Custom'),
   price: z.coerce.number().min(0),
   originalPrice: z.coerce.number().min(0).optional().default(0),
   buyLink: z.union([z.string().url(), z.literal('')]).optional().default(''),
   sku: z.string().max(120).optional().default(''),
   stock: z.coerce.number().min(0),
   shippingCost: z.coerce.number().min(0).optional().default(0),
+  ratingAvg: z.coerce.number().min(0).max(5).optional().default(0),
+  ratingCount: z.coerce.number().min(0).optional().default(0),
+  bankOffer: z.coerce.boolean().optional().default(false),
+  exchangeOffer: z.coerce.boolean().optional().default(false),
+  emiAvailable: z.coerce.boolean().optional().default(false),
+  partnerCoupon: z.coerce.boolean().optional().default(false),
   tags: z.array(z.string().max(40)).optional().default([]),
   status: z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SUSPENDED']).optional(),
   images: z
@@ -62,11 +84,34 @@ function mapStatusAndActive(statusInput) {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { category, q, limit, page } = listQuerySchema.parse(req.query);
+    const {
+      category,
+      q,
+      brand,
+      sourceCompany,
+      minPrice,
+      maxPrice,
+      minRating,
+      bankOffer,
+      exchangeOffer,
+      emiAvailable,
+      partnerCoupon,
+      limit,
+      page,
+    } = listQuerySchema.parse(req.query);
 
     const filter = { isActive: true, status: 'APPROVED' };
     if (category) filter.category = category;
     if (q) filter.title = { $regex: q, $options: 'i' };
+    if (brand) filter.brand = { $regex: `^${brand}$`, $options: 'i' };
+    if (sourceCompany) filter.sourceCompany = sourceCompany;
+    if (typeof minRating === 'number') filter.ratingAvg = { ...(filter.ratingAvg || {}), $gte: minRating };
+    if (typeof minPrice === 'number') filter.price = { ...(filter.price || {}), $gte: minPrice };
+    if (typeof maxPrice === 'number') filter.price = { ...(filter.price || {}), $lte: maxPrice };
+    if (typeof bankOffer === 'boolean') filter.bankOffer = bankOffer;
+    if (typeof exchangeOffer === 'boolean') filter.exchangeOffer = exchangeOffer;
+    if (typeof emiAvailable === 'boolean') filter.emiAvailable = emiAvailable;
+    if (typeof partnerCoupon === 'boolean') filter.partnerCoupon = partnerCoupon;
 
     const skip = (page - 1) * limit;
     const [items, total] = await Promise.all([
@@ -75,7 +120,7 @@ router.get(
         .skip(skip)
         .limit(limit)
         .select(
-          'title price currency images ratingAvg ratingCount stock category brand deliveryEtaDaysMin deliveryEtaDaysMax buyLink'
+          'title price currency images ratingAvg ratingCount stock category brand sourceCompany bankOffer exchangeOffer emiAvailable partnerCoupon deliveryEtaDaysMin deliveryEtaDaysMax buyLink'
         ),
       Product.countDocuments(filter),
     ]);

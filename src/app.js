@@ -20,6 +20,7 @@ const { clicksRouter } = require('./routes/clicks');
 const { superadminRouter } = require('./routes/superadmin');
 const { reportsRouter } = require('./routes/reports');
 const { customerRouter } = require('./routes/customer');
+const { supportRouter } = require('./routes/support');
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use('/api/clicks', clicksRouter);
 app.use('/api/superadmin', superadminRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/customer', customerRouter);
+app.use('/api/support', supportRouter);
 
 app.use(errorHandler);
 
