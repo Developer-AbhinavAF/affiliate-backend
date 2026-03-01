@@ -101,7 +101,7 @@ router.post(
     const passwordHash = await bcrypt.hash(password, 12);
     const expiryTime = new Date(now + 5 * 60 * 1000);
 
-    await SignupOtp.create({
+    const otpRow = await SignupOtp.create({
       email,
       name,
       passwordHash,
@@ -117,6 +117,12 @@ router.post(
       await sendSignupOtpEmail(email, code);
     } catch (e) {
       console.error('Failed to send signup OTP email', e);
+      try {
+        await SignupOtp.deleteOne({ _id: otpRow._id });
+      } catch (cleanupErr) {
+        console.error('Failed to cleanup signup OTP row after email failure', cleanupErr);
+      }
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again.' });
     }
 
     return res.json({ success: true, message: 'OTP sent', maskedEmail: maskEmail(email) });

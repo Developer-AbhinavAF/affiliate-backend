@@ -9,21 +9,37 @@ let transporter = null;
 const sanitizedPass = (SMTP_PASS || '').replace(/\s+/g, '');
 
 if (SMTP_HOST && SMTP_PORT && SMTP_USER && sanitizedPass) {
-  transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: Number(SMTP_PORT) === 465,
-    auth: {
-      user: SMTP_USER,
-      pass: sanitizedPass,
-    },
-  });
+  const hostLower = String(SMTP_HOST || '').toLowerCase();
+  const portNum = Number(SMTP_PORT);
+  const isGmail = hostLower === 'gmail' || hostLower.includes('gmail');
+
+  transporter = isGmail
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: SMTP_USER, pass: sanitizedPass },
+      })
+    : nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: portNum,
+        secure: portNum === 465,
+        auth: {
+          user: SMTP_USER,
+          pass: sanitizedPass,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+
+  transporter
+    .verify()
+    .then(() => console.log('SMTP transporter verified'))
+    .catch((e) => console.error('SMTP transporter verify failed', e));
 }
 
 async function sendOtpEmail(to, code) {
   if (!transporter) {
-    console.log('OTP code (email not configured):', to, code);
-    return;
+    throw new Error('SMTP is not configured');
   }
 
   // Gmail/SMTP often requires the FROM to match the authenticated mailbox.
@@ -41,8 +57,7 @@ async function sendOtpEmail(to, code) {
 
 async function sendSignupOtpEmail(to, code) {
   if (!transporter) {
-    console.log('Signup OTP (email not configured):', to, code);
-    return;
+    throw new Error('SMTP is not configured');
   }
 
   const safeFrom = `TrendKart <${SMTP_USER}>`;
