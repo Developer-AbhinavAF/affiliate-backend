@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const { User } = require('../models/User');
 const { Product } = require('../models/Product');
 const { Order } = require('../models/Order');
+const { Cart } = require('../models/Cart');
+const { Wishlist } = require('../models/Wishlist');
 const { PlatformSettings } = require('../models/PlatformSettings');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/requireRole');
@@ -85,6 +87,30 @@ router.patch('/users/:id/role', requireAuth, requireRole(['SUPER_ADMIN']), async
   user.role = role;
   await user.save();
   res.json({ success: true, role: user.role });
+}));
+
+router.delete('/users/:id', requireAuth, requireRole(['SUPER_ADMIN']), asyncHandler(async (req, res) => {
+  const targetId = String(req.params.id || '');
+  if (!targetId) return res.status(400).json({ success: false, message: 'Invalid user id' });
+
+  if (req.user?._id && String(req.user._id) === targetId) {
+    return res.status(400).json({ success: false, message: 'Cannot delete your own account' });
+  }
+
+  const user = await User.findById(targetId);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (user.role === 'SUPER_ADMIN') {
+    return res.status(400).json({ success: false, message: 'Cannot delete super admin' });
+  }
+
+  await Promise.all([
+    Cart.deleteOne({ userId: user._id }),
+    Wishlist.deleteOne({ userId: user._id }),
+    Order.updateMany({ customerId: user._id }, { $unset: { customerId: '' } }),
+  ]);
+
+  await User.deleteOne({ _id: user._id });
+  return res.json({ success: true });
 }));
 
 // Seller management endpoints removed (no seller role)

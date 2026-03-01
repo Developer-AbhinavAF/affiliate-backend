@@ -11,16 +11,22 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const { sendOtpEmail, sendSignupOtpEmail } = require('../config/email');
 
 const signupSchema = z.object({
-  name: z.string().min(2).max(60),
-  email: z.string().email(),
+  name: z.string().trim().min(2).max(60),
+  email: z.string().trim().email().transform((v) => v.toLowerCase()),
   password: z.string().min(8).max(128),
 });
 
 const signupRequestOtpSchema = signupSchema;
 
+const otpCodeSchema = z
+  .preprocess(
+    (v) => (typeof v === 'string' ? v.replace(/\s+/g, '') : v),
+    z.string().min(4).max(12)
+  );
+
 const signupVerifyOtpSchema = z.object({
-  email: z.string().email(),
-  code: z.string().min(4).max(12),
+  email: z.string().trim().email().transform((v) => v.toLowerCase()),
+  code: otpCodeSchema,
 });
 
 const loginSchema = z.object({
@@ -32,7 +38,7 @@ const loginSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
-  identifier: z.string().min(2).max(160),
+  identifier: z.string().trim().min(2).max(160),
 });
 
 const passwordRegex =
@@ -40,8 +46,8 @@ const passwordRegex =
 
 const resetPasswordSchema = z
   .object({
-    identifier: z.string().min(2).max(160),
-    code: z.string().min(4).max(12),
+    identifier: z.string().trim().min(2).max(160),
+    code: otpCodeSchema,
     newPassword: z.string().regex(passwordRegex, 'Password does not meet complexity requirements'),
   })
   .refine((v) => Boolean(v.identifier), {
