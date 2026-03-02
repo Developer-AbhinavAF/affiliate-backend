@@ -30,8 +30,8 @@ const signupVerifyOtpSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email().optional(),
-  username: z.string().min(2).max(60).optional(),
+  email: z.string().trim().email().transform((v) => v.toLowerCase()).optional(),
+  username: z.string().trim().min(2).max(60).optional(),
   password: z.string().min(8).max(128),
 }).refine((v) => Boolean(v.email) || Boolean(v.username), {
   message: 'email or username is required',
@@ -213,8 +213,13 @@ router.post(
     const ip = req.ip;
 
     const user = email
-      ? await User.findOne({ email })
-      : await User.findOne({ $or: [{ username }, { name: username }] });
+      ? await User.findOne({ email: String(email).toLowerCase().trim() })
+      : await User.findOne({
+          $or: [
+            { username: String(username || '').trim() },
+            { name: String(username || '').trim() },
+          ],
+        });
     if (!user) {
       await LoginLog.create({
         emailOrUsernameTried: identifier,
