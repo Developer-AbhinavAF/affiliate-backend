@@ -54,8 +54,8 @@ async function seedUsers() {
   // default helper account
   await upsertUser({
     name: 'AI Helper',
-    username: 'helper@ai',
-    email: 'helper@ai',
+    username: 'helper',
+    email: 'helper@trendkart.local',
     password: 'thisisaihelperthatistobecreatedbysuperadmin',
     role: 'HELPER',
   });
