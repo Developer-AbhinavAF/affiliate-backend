@@ -128,6 +128,11 @@ router.patch('/products/:id/status', requireAuth, requireRole(['SUPER_ADMIN', 'A
   const { status } = req.body; // APPROVED, REJECTED
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ message: 'Product not found' });
+  if (status === 'REJECTED') {
+    await Product.deleteOne({ _id: product._id });
+    return res.json({ success: true, deleted: true });
+  }
+
   product.status = status;
   await product.save();
   res.json({ success: true, status: product.status });

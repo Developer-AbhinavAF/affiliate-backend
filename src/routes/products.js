@@ -81,6 +81,37 @@ function mapStatusAndActive(statusInput) {
   return { status, isActive };
 }
 
+// Management list for helper: only own products
+router.get(
+  '/manage/mine',
+  requireAuth,
+  requireRole(['SUPER_ADMIN', 'ADMIN', 'HELPER']),
+  asyncHandler(async (req, res) => {
+    const { status, q, page, limit } = manageListQuerySchema.parse(req.query);
+    const filter = { createdBy: req.user._id };
+    if (status) filter.status = status;
+    if (q) filter.title = { $regex: q, $options: 'i' };
+
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      Product.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Product.countDocuments(filter),
+    ]);
+
+    res.json({
+      success: true,
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  })
+);
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -220,7 +251,9 @@ router.post(
   requireRole(['SUPER_ADMIN', 'ADMIN', 'HELPER']),
   asyncHandler(async (req, res) => {
     const payload = createProductSchema.parse(req.body);
-    const { status, isActive } = mapStatusAndActive(payload.status);
+    const requestedStatus = payload.status;
+    const effectiveStatus = req.user.role === 'HELPER' ? 'PENDING_APPROVAL' : requestedStatus;
+    const { status, isActive } = mapStatusAndActive(effectiveStatus);
 
     const doc = await Product.create({
       ...payload,
