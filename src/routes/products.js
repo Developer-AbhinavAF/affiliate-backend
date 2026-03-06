@@ -34,6 +34,26 @@ const manageListQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(25),
 });
 
+const keyValueSchema = z.object({
+  key: z.string().min(1).max(120),
+  value: z.string().min(1).max(2000),
+});
+
+function kvInputToArray(input) {
+  if (!input) return [];
+  if (Array.isArray(input)) return input;
+  if (typeof input !== 'object') return [];
+  return Object.entries(input)
+    .map(([key, value]) => ({ key: String(key), value: String(value ?? '') }))
+    .filter((x) => x.key.trim() && x.value.trim());
+}
+
+const kvArrayOrRecordSchema = z
+  .union([z.array(keyValueSchema), z.record(z.string().max(2000))])
+  .optional()
+  .default([])
+  .transform(kvInputToArray);
+
 
 const baseProductSchema = z.object({
   title: z.string().min(3).max(200),
@@ -56,7 +76,22 @@ const baseProductSchema = z.object({
   exchangeOffer: z.coerce.boolean().optional().default(false),
   emiAvailable: z.coerce.boolean().optional().default(false),
   partnerCoupon: z.coerce.boolean().optional().default(false),
+  highlights: z.array(z.string().min(1).max(240)).optional().default([]),
+  specs: kvArrayOrRecordSchema,
+  manufacturerInfo: kvArrayOrRecordSchema,
   tags: z.array(z.string().max(40)).optional().default([]),
+  flipkartAssured: z.coerce.boolean().optional().default(false),
+  cashOnDelivery: z.string().max(30).optional().default(''),
+  returnPolicyDays: z.coerce.number().min(0).max(365).optional().default(0),
+  scrapedProductId: z.string().max(120).optional().default(''),
+  scrapedProductUrl: z.union([z.string().url(), z.literal('')]).optional().default(''),
+  scrapedAt: z.union([z.string().datetime(), z.date()]).optional().transform((v) => {
+    if (!v) return undefined;
+    if (v instanceof Date) return v;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }),
+  scrapedOffers: z.array(z.string().min(1).max(240)).optional().default([]),
   status: z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SUSPENDED']).optional(),
   images: z
     .array(
@@ -164,6 +199,24 @@ router.get(
       total,
       totalPages: Math.ceil(total / limit),
     });
+  })
+);
+
+
+// Suggestions for dashboard search (no live searching results; only suggestions)
+router.get(
+  '/manage/suggest',
+  requireAuth,
+  requireRole(['SUPER_ADMIN', 'ADMIN', 'HELPER']),
+  asyncHandler(async (req, res) => {
+    const schema = z.object({ q: z.string().min(2).max(80) });
+    const { q } = schema.parse(req.query);
+    const items = await Product.find({ title: { $regex: q, $options: 'i' } })
+      .sort({ createdAt: -1 })
+      .limit(8)
+      .select('title');
+
+    res.json({ success: true, items: items.map((x) => ({ _id: x._id, title: x.title })) });
   })
 );
 

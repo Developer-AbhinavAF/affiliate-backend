@@ -61,9 +61,18 @@ const productSchema = new mongoose.Schema(
     partnerCoupon: { type: Boolean, default: false, index: true },
     stock: { type: Number, default: 0, min: 0 },
     specs: { type: [specSchema], default: [] },
+    manufacturerInfo: { type: [specSchema], default: [] },
     highlights: [{ type: String }],
     tags: [{ type: String }],
     shippingCost: { type: Number, default: 0, min: 0 },
+    flipkartAssured: { type: Boolean, default: false, index: true },
+    cashOnDelivery: { type: String, default: '' },
+    returnPolicyDays: { type: Number, default: 0, min: 0 },
+
+    scrapedProductId: { type: String, default: '', index: true },
+    scrapedProductUrl: { type: String, default: '' },
+    scrapedAt: { type: Date },
+    scrapedOffers: [{ type: String }],
     status: {
       type: String,
       enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SUSPENDED'],
